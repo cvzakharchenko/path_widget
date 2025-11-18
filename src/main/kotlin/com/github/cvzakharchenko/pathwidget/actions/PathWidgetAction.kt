@@ -86,7 +86,7 @@ class PathLabel : JBLabel(), FileEditorManagerListener {
             file.path
         }
 
-        text = relativePath ?: file.name
+        text = (relativePath ?: file.name).replace("/", " / ")
         toolTipText = file.path
     }
 }
