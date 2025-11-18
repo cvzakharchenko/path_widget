@@ -12,4 +12,13 @@
         <toolWindow factoryClass="com.github.cvzakharchenko.pathwidget.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
         <postStartupActivity implementation="com.github.cvzakharchenko.pathwidget.startup.MyProjectActivity" />
     </extensions>
+
+    <actions>
+        <action id="com.github.cvzakharchenko.pathwidget.actions.PathWidgetAction"
+                class="com.github.cvzakharchenko.pathwidget.actions.PathWidgetAction"
+                text="Path Widget"
+                description="Displays the relative path of the current file">
+            <add-to-group group-id="MainToolBar" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>
