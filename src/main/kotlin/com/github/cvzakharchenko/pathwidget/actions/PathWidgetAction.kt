@@ -11,6 +11,7 @@ import com.intellij.openapi.fileEditor.FileEditorManagerEvent
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.intellij.openapi.vfs.VirtualFile
@@ -18,6 +19,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.util.messages.MessageBusConnection
 import com.intellij.util.ui.JBUI
 import javax.swing.JComponent
+import javax.swing.SwingUtilities
 
 class PathWidgetAction : AnAction(), CustomComponentAction, DumbAware {
 
@@ -45,20 +47,7 @@ class PathLabel : JBLabel(), FileEditorManagerListener {
 
     override fun addNotify() {
         super.addNotify()
-        // Try to get the project from the context
-        val dataContext = DataManager.getInstance().getDataContext(this)
-        val project = CommonDataKeys.PROJECT.getData(dataContext)
-
-        if (project != null && currentProject != project) {
-            currentProject = project
-            connection?.disconnect()
-            connection = project.messageBus.connect()
-            connection?.subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this)
-            
-            // Initial update
-            val selectedFiles = FileEditorManager.getInstance(project).selectedFiles
-            updatePath(selectedFiles.firstOrNull())
-        }
+        ensureProjectBinding()
     }
 
     override fun removeNotify() {
@@ -70,6 +59,52 @@ class PathLabel : JBLabel(), FileEditorManagerListener {
 
     override fun selectionChanged(event: FileEditorManagerEvent) {
         updatePath(event.newFile)
+    }
+
+    private fun ensureProjectBinding() {
+        if (currentProject != null) {
+            return
+        }
+
+        val dataManager = DataManager.getInstance()
+
+        val directContext = runCatching { dataManager.getDataContext(this) }.getOrNull()
+        val projectFromComponent = directContext?.let { CommonDataKeys.PROJECT.getData(it) }
+        if (projectFromComponent != null) {
+            attachToProject(projectFromComponent)
+            return
+        }
+
+        val openProjects = ProjectManager.getInstance().openProjects.filterNot { it.isDisposed }
+        if (openProjects.size == 1) {
+            attachToProject(openProjects.first())
+            return
+        }
+
+        dataManager.getDataContextFromFocusAsync().onSuccess { context ->
+            val projectFromFocus = CommonDataKeys.PROJECT.getData(context)
+            if (projectFromFocus != null) {
+                SwingUtilities.invokeLater {
+                    if (isDisplayable) {
+                        attachToProject(projectFromFocus)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun attachToProject(project: Project) {
+        if (project.isDisposed || currentProject == project) {
+            return
+        }
+
+        connection?.disconnect()
+        currentProject = project
+        connection = project.messageBus.connect()
+        connection?.subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, this)
+
+        val selectedFiles = FileEditorManager.getInstance(project).selectedFiles
+        updatePath(selectedFiles.firstOrNull())
     }
 
     private fun updatePath(file: VirtualFile?) {
